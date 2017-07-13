@@ -1,93 +1,53 @@
 #lang racket
+(require redex/reduction-semantics)
 
-(require redex)
-(require rackunit)
 
-(define-language L
-  (t ::= (→ t t)
-          int
-          ⊤
-          ⊥)
+(define-language STLC
+  (e ::= x (λ (x τ) e) (e e) integer)
+  (τ ::= Int (→ τ τ))
+  (Γ ::= ((x τ) ...))
+  (x ::= variable-not-otherwise-mentioned))
+
+(define Γ? (redex-match? STLC Γ))
+
+(test-equal (Γ? (term [(x Int)])) #t)
+(test-equal (Γ? (term [(x (→ Int Int))])) #t)
+(test-equal (Γ? (term ((x Int) (x (→ Int Int))))) #t)
+
+
+(define-judgment-form STLC
+  #:mode (infer-type I I O)
+  #:contract (infer-type Γ e τ)
+
+ [--------------------------
+  (infer-type Γ integer Int)]
   
-  (e ::= 0
-         x 
-         (λ (x) e)
-         (e e)
-         (succ e))
-
-  (q ::= (0 : int)
-         (x : t)
-         (λ (x) q : t)
-         (q q : t)
-         (succ q : t))  
+  [(infer-type Γ e_1 (→ τ_2 τ_3))
+   (infer-type Γ e_2 τ_2)
+   ------------------------------
+   (infer-type Γ (e_1 e_2) τ_3)]
   
-  (x ::= variable-not-otherwise-mentioned)
+ [(where ((x_3 τ_3) ...) Γ)
+  (where Γ_1 ((x_1 τ_1) (x_3 τ_3) ...))
+  (infer-type Γ_1 e τ_2)
+ -------------------------------------
+  (infer-type Γ (λ (x_1 τ_1) e) (→ τ_1 τ_2))]
+
+  [(where ((x_1 τ_1) ... (x τ) (x_2 τ_2) ...) Γ)
+  ----------------------------------------------
+   (infer-type Γ x τ)]
+
+  
   )
 
-;subtype
-(define-relation L
-  subtype ⊆ t × t
-  [(subtype t t)]
-  [(subtype (→ t_1 t_2) (→ t_3 t_4))
-   (and (subtype t_3 t_1)
-        (subtype t_4 t_3))]
-  [(subtype t ⊤)]
-  [(subtype ⊥ t)])
-
-;tests
-(test-equal (term (subtype int int)) #t)
-(test-equal (term (subtype (→ int int) (→ ⊥ ⊤))) #t)
+(test-equal (judgment-holds (infer-type () 3 Int)) #t)
+(test-equal (judgment-holds (infer-type () (λ (x Int) x) (→ Int Int))) #t)
+(test-equal (judgment-holds (infer-type () ((λ (x Int) x) 3) Int)) #t)
 
 
-(define-extended-language L+Γ L
-  [Γ · (x : t Γ)])
-
-;judgment
-(define-judgment-form
-  L+Γ
-  #:mode (types I I)
-  #:contract (types Γ q)
-
-  [----------------  Rule1
-   (types Γ (0 : int))]
-
-  [(types Γ (q_1 : int))
-   ------------------------ Rule2
-   (types Γ (succ q_1 : int))]
-
-   [
-    (where t (lookup Γ x))
-    ----------------------- "variable"
-   (⊢ Γ x t)]
-
-   [---------------------------- Rule3
-   (types (x : t Γ) (x : t))] ;lookup -- where
-
-  [(types (x : t_1 Γ) (q : t_2))
-   ------------------------------------ Rule4
-   (types Γ (λ (x) q : (→ t_1 t_2)))]
+; (side-condition ,(printf "HI gamma is ~a~n" (term Γ_1)))
 
 
-
-  [(types Γ q_1)
-   (types Γ q_2)
-   ------------------------------ Rule5
-   (types Γ (q_1 q_2 : t_3))]
-
-
-   [(subtype t_1 t_2)
-    (types Γ (q_1 : t_1))
-   ------------------------------------- Rule6
-   (types Γ (q_1 : t_2))]
-
-
-  )
   
-
-;tests
-(test-equal (judgment-holds (types · (0 : int))) #t)
-(test-equal (judgment-holds (types · (x : int)) (types · ((x : int))) #t)
-
 
 (test-results)
-
