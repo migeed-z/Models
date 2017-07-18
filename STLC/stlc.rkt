@@ -8,8 +8,10 @@
   (Γ ::= ((x τ) ...))
   (env ::= ((x v) ...))
   (v ::= integer ((λ (x) e) env))
-  (x ::= variable-not-otherwise-mentioned))
-
+  (x ::= variable-not-otherwise-mentioned)
+  (C ::= hole
+         (C e)
+         (v C)))
 
 
 (define-metafunction STLC
@@ -34,6 +36,30 @@
 (test-equal (term (extend x 3 ())) (term ((x 3))))
 (test-equal (term (extend x 4 ((x 3)))) (term ((x 4))))
 
+
+(define -->β
+(reduction-relation
+ STLC
+ #:domain (env e)
+ (--> (env (in-hole C x))
+      (env (in-hole C (lookup env x))))
+
+ (--> (env (in-hole C (λ (x τ) e_1)))
+      (env (in-hole C ((λ (x) e_1) env))))
+
+#; (--> (env (in-hole C (e_1 e_2)))
+      (env_new (in-hole C (e_new e_2))))
+ 
+ )
+ )
+(redex-match? STLC e (term (hole x)))
+(redex-match? STLC (x x_2) (term (hole x)))
+(apply-reduction-relation -->β (term (((x 3)) x)))
+
+(test--> -->β (term (((x 3)) x)) (term (((x 3)) 3)))
+
+(redex-match? STLC (env e) (term (((x 3)) x)))
+ 
 (define eval
   (reduction-relation
    STLC
