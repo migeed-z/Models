@@ -57,18 +57,52 @@
    
    ))
 
-
-
 (check-true (redex-match? STLC ((e_1 e_2) env) (term  ((((λ (x) x) ()) 3) ())) ))
 (check-true (redex-match? STLC ((e v) env) (term  ((((λ (x) x) ()) 3) ()))))
+(check-true (redex-match? STLC (e_1 e_2) (term ((λ (x Int) x) 3))))
 
 (test--> eval (term (((λ (x Int) x) 3) ())) (term ((((λ (x) x) ()) 3) ())))
 (test--> eval  (term ((((λ (x) x) ()) 3) ())) (term (x ((x 3)))))
 (test--> eval  (term (x ((x 3)))) (term (3 ((x 3)))))
 
 (test--> eval
-         (term [([(λ (x) x) ()] ((λ (y Int) y) 3)) ()])
+         (term [([(λ (x) x) ()] ((λ (y Int) y) 3)) ()]) 
          (term [([(λ (x) x) ()] ([(λ (y) y) ()] 3)) ()]))
+
+(test-->> eval
+         (term [([(λ (x) x) ()] ((λ (y Int) y) 3)) ()]) 
+         (term (3 ((x 3)))))
+
+
+(define-judgment-form STLC
+  #:mode (==>* I I O)
+  #:contract (==>* e env v)
+
+  [-------------------
+  (==>* x env (lookup env x))]
+
+  [-------------------
+  (==>* integer env integer)]
+  
+  [(==>* e_1 env ((λ (x) e) env_lam))
+   (==>* e_2 env v)
+   (where env_new (extend x v env_lam))
+   (==>* e env_new v_2)
+   -------------------------
+   (==>* (e_1 e_2) env v_2)]
+
+  [--------------------------------------
+   (==>* (λ (x τ) e) env ((λ (x) e) env))]
+  )
+
+
+(test-judgment-holds (==>*  x ((x 3)) 3))
+(test-judgment-holds (==>* (λ (x Int) x) () ((λ (x) x) ())))
+
+
+(test-judgment-holds (==>* ((λ (x Int) x) 3) () 3))
+
+
 
 (define Γ? (redex-match? STLC Γ))
 
