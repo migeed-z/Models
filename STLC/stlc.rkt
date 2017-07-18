@@ -1,5 +1,6 @@
 #lang racket
 (require redex/reduction-semantics)
+(require rackunit)
 
 (define-language STLC
   (e ::= x (λ (x τ) e) (e e) v)
@@ -9,7 +10,8 @@
   (v ::= integer ((λ (x) e) env))
   (x ::= variable-not-otherwise-mentioned))
 
-; (lookup env x) retrieves x's value from env
+
+
 (define-metafunction STLC
   lookup : env x -> any
   [(lookup ((x_1 v_1)  ... (x v) (x_2 v_2) ...) x)
@@ -18,54 +20,11 @@
    [(lookup env x) ;defined diff. in the tutorial why???
      #f])
 
-
 (define-metafunction STLC
     extend : x v env -> any
     [(extend x v ((x_1 v_1) ... (x v_2) (x_3 v_3) ...)) ((x_1 v_1) ... (x v) (x_3 v_3) ...)]
     [(extend x v ((x_1 v_1) ...)) ((x v) (x_1 v_1) ...)]
   )
-
-
-
-(define eval
-  (reduction-relation
-   STLC
-   #:domain (e env)
-   (--> (x env)
-        ((lookup env x) env))
-
-   (--> (integer env) (integer env))
-
-   (--> ((λ (x τ) e_1) env)
-        (((λ (x) e_1) env) env))
-
-   (--> ((e_1 e_2) env)
-        ((e_new e_2) env)
-        (where ((e_new env)) ,(apply-reduction-relation eval (term (e_1 env)))))
-   
-   
- #| (--> ((((λ (x) e_1) env_lam) e) env_2)
-       ((((λ (x) e_1) env_lam) e_new) env_2)
-       (where ((e_new env)) ,(apply-reduction-relation eval (term (e_1 env_2))))) 
-       
- |#
-
-    (--> ((((λ (x) e_1) env_lam) v) env)
-       (e_1 (extend x v env_lam))
-       ) 
-   
-   ))
-
-(redex-match? STLC (e env)  (term (((λ (x Int) x) 3) ())))
-
-(test--> eval (term (5 ())) (term (5 ())))
-(test--> eval (term ((λ (x Int) x) ()))  (term (((λ (x) x) ()) ())) )
-(test--> eval (term (((λ (x Int) x) 3) ())) (term ((((λ (x) x) ()) 3) ())))
-(test--> eval  (term ((((λ (x) x) ()) 3) ())) (term (x ((x 3)))))
-(test--> eval  (term (x ((x 3)))) (term (3 ((x 3)))))
-
-
-;(test-equal (term (eval (term 5) (term ()))) 5)
 
 ;tests
 (test-equal (term (lookup ((x 3)) x)) (term 3))
@@ -75,6 +34,41 @@
 (test-equal (term (extend x 3 ())) (term ((x 3))))
 (test-equal (term (extend x 4 ((x 3)))) (term ((x 4))))
 
+(define eval
+  (reduction-relation
+   STLC
+   #:domain (e env)
+   (--> (x env)
+        ((lookup env x) env))
+
+   (--> ((λ (x τ) e_1) env)
+        (((λ (x) e_1) env) env))
+
+   (--> ((e_1 e_2) env)
+        ((e_new e_2) env_new)
+        (where ((e_new env_new)) ,(apply-reduction-relation eval (term (e_1 env)))))
+
+   (--> ((((λ (x) e_1) env_lam) e) env)
+      ((((λ (x) e_1) env_lam) e_2) env_new)
+      (where ((e_2 env_new)) ,(apply-reduction-relation eval (term (e env)))))
+     
+   (--> ((((λ (x) e_1) env_lam) v) env)
+       (e_1 (extend x v env_lam)))
+   
+   ))
+
+
+
+(check-true (redex-match? STLC ((e_1 e_2) env) (term  ((((λ (x) x) ()) 3) ())) ))
+(check-true (redex-match? STLC ((e v) env) (term  ((((λ (x) x) ()) 3) ()))))
+
+(test--> eval (term (((λ (x Int) x) 3) ())) (term ((((λ (x) x) ()) 3) ())))
+(test--> eval  (term ((((λ (x) x) ()) 3) ())) (term (x ((x 3)))))
+(test--> eval  (term (x ((x 3)))) (term (3 ((x 3)))))
+
+(test--> eval
+         (term [([(λ (x) x) ()] ((λ (y Int) y) 3)) ()])
+         (term [([(λ (x) x) ()] ([(λ (y) y) ()] 3)) ()]))
 
 (define Γ? (redex-match? STLC Γ))
 
@@ -109,12 +103,6 @@
 (test-judgment-holds (infer-type () 3 Int))
 (test-judgment-holds (infer-type () (λ (x Int) x) (→ Int Int)))
 (test-judgment-holds (infer-type () ((λ (x Int) x) 3) Int))
-
-
-; (side-condition ,(printf "HI gamma is ~a~n" (term Γ_1)))
-
-
-
 
 
 (test-results)
