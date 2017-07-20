@@ -46,19 +46,20 @@
 
  (--> (env (in-hole C (λ (x τ) e_1)))
       (env (in-hole C ((λ (x) e_1) env))))
-
-#; (--> (env (in-hole C (e_1 e_2)))
-      (env_new (in-hole C (e_new e_2))))
  
+ (--> (env (in-hole C (((λ (x) e_1) env_lam) v)))
+      ((extend x v env_lam) (in-hole C e_1)))
  )
  )
-(redex-match? STLC e (term (hole x)))
-(redex-match? STLC (x x_2) (term (hole x)))
-(apply-reduction-relation -->β (term (((x 3)) x)))
 
 (test--> -->β (term (((x 3)) x)) (term (((x 3)) 3)))
 
-(redex-match? STLC (env e) (term (((x 3)) x)))
+(test--> -->β (term (() ((λ (x Int) x) 3))) (term (() (((λ (x) x) ()) 3))))
+(test--> -->β  (term (() (((λ (x) x) ()) 3))) (term (((x 3)) x)))
+(test-->> -->β  (term (() (((λ (x) x) ()) 3))) (term (((x 3)) 3)))
+(test-->> -->β
+         (term [() ([(λ (x) x) ()] ((λ (y Int) y) 3))]) 
+         (term (((x 3)) 3)))
  
 (define eval
   (reduction-relation
