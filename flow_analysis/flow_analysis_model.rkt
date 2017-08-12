@@ -20,11 +20,179 @@
          ((λ (x) q) : t)
          ((q q) : t)
          ((succ q) : t))
-  
-  (x ::= variable-not-otherwise-mentioned)
-  (Γ ::= ((x t) ...))
 
-  )
+  (YE ::= 0
+          x 
+          (λ (x) YE)
+          (YE YE)
+          (succ YE))
+  
+  (XE ::= x) ;set of bound variables
+
+  (v ::= XE
+         YE)
+  (W ::= (v -> v (λ (x) YE))
+          W*)
+
+  (W+ ::= (v -> v (YE YE))
+           W*)
+
+  (W* ::= Int
+          v)
+  
+  (Const ::= (W ≤ W+)
+             (Const ...))
+
+
+  (x ::= variable-not-otherwise-mentioned)
+  (Γ ::= ((x t) ...)))
+
+
+
+(define-metafunction L
+  ;given T(e) returns T'(e)
+  T- : Const -> Const
+
+  [(T-((W ≤ W+)... (W_1 ≤ W*_2) (W_3 ≤ W+_4) ... (W*_2 ≤ W+_3)))
+    (T- ((W ≤ W+)... (W_1 ≤ W*_2) (W_3 ≤ W+_4) ... (W*_2 ≤ W+_3) (W_1 ≤ W+_3)))
+    (side-condition (not (member
+                          (term (W_1 ≤ W+_3))
+                          (term ((W ≤ W+)... (W_1 ≤ W*_2) (W_3 ≤ W+_4) ... (W*_2 ≤ W+_3))))))]
+                 
+          
+  [(T- (((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h))) (W ≤ W+) ...) )  
+     (T- (((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h)))
+          (W ≤ W+) ...
+          (v_s2 ≤ v_s1)
+          (v_t1 ≤ v_t2)))
+
+     (side-condition (and (not (member (term (v_s2 ≤ v_s1))
+                                  (term (((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h)))
+                                         (W ≤ W+) ...))))
+                          (not (member (term (v_t1 ≤ v_t2))
+                                  (term (((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h)))
+                                         (W ≤ W+) ...))))))]
+  [(T- Const) Const])
+
+
+(test-equal (term  (T- (((x -> 0 (λ (x) 0)) ≤ (x -> 0 ((λ (x) 0) 0)))) ))
+            (term  (((x -> 0 (λ (x) 0)) ≤ (x -> 0 ((λ (x) 0) 0)))
+                    (x ≤ x)
+                    (0 ≤ 0))))
+
+(check-true (redex-match? L Const (term (((0 ≤ Int) (Int ≤ 0))))))
+(check-true (redex-match? L (W ≤ W+) (term (Int ≤ Int))))
+(check-true (redex-match? L  ((W ≤ W+)... (W_1 ≤ W+_1) ... (W_2 ≤ W+_2))
+                             (term ((x ≤ (succ x)) ((succ x) ≤ Int)))))
+(check-true (redex-match? L  (((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h))) (W ≤ W+) ...)
+          (term              (((x -> 0 (λ (x) 0)) ≤ (x -> 0 ((λ (x) 0) 0))) ))))
+
+
+
+(test-equal (term (T-((0 ≤ Int) (Int ≤ 0)))) (term((0 ≤ Int) (Int ≤ 0) (0 ≤ 0))))
+(test-equal (term (T-((x ≤ (succ x)) ((succ x) ≤ Int))))
+            (term ((x ≤ (succ x)) ((succ x) ≤ Int) (x ≤ Int))))
+
+
+
+
+(define-metafunction L
+  ;generate a system of constraints for e
+  T : e -> Const
+  [(T  0) ((Int ≤ 0))]
+  [(T x) ((x ≤ x))]
+  
+  [(T (succ e)) ,(append (term ((Int ≤ (succ e))
+                                       (e  ≤ Int)))
+                                 (term (T e)))]
+  
+  [(T (λ (x) e)) ,(append  (term (((x -> e (λ (x) e)) ≤  (λ (x) e))))
+                                   (term (T e)))]
+  
+  [(T (e_g e_h)) ,(append (term ((e_g ≤ (e_h -> (e_g e_h) (e_g e_h)))))
+                                 (term (T e_g))
+                                 (term (T e_h)))]) 
+  
+
+(test-equal (term (T 0)) (term ((Int ≤ 0))))
+(test-equal (term (T (succ 0)))
+            (term ((Int ≤ (succ 0)) (0 ≤ Int) (Int ≤ 0))))
+
+(test-equal (term (T x)) (term ((x ≤ x))))
+
+(test-equal (term (T (λ (x) 0)))
+            (term (((x -> 0 (λ (x) 0)) ≤  (λ (x) 0)) (Int ≤ 0))))
+
+(test-equal (term (T ((λ (x) x) 0)))
+            (term (((λ (x) x) ≤ (0 -> ((λ (x) x) 0) ((λ (x) x) 0)))
+                    ((x -> x (λ (x) x)) ≤ (λ (x) x))
+                    (x ≤ x)
+                    (Int ≤ 0))))
+
+(test-equal (term (T (λ (x) (x (succ x)))))
+(term (((x -> (x (succ x)) (λ (x) (x (succ x)))) ≤ (λ (x) (x (succ x))))
+  (x ≤ ((succ x) -> (x (succ x)) (x (succ x))))
+  (x ≤ x)
+  (Int ≤ (succ x))
+  (x ≤ Int)
+  (x ≤ x))))
+
+
+
+#|(define-relation L
+  ≤ ⊆ W × W+
+  [(≤ Int {0})]
+  [(≤ Int {succ YE})]
+  [(≤ YE Int)]
+  [(≤ (x -> YE {λ (x) YE}) {(λ (x) YE)})]
+  [(≤ YE_G (YE_H -> YE_GH {YE_G YE_H}))]
+  [(≤ x {x})])|#
+
+
+(define-metafunction L
+  ;returns a set of bound variables
+  ;assumes e is λ_converted (all bound var. are unique)
+  get_xe : e -> any
+  [(get_xe 0) []]
+  [(get_xe x) []]
+  [(get_xe (λ (x) e)) ,(append (term [x]) (term (get_xe e)))]
+  [(get_xe (e_1 e_2)) ,(append (term (get_xe e_1)) (term (get_xe e_2)))]
+  [(get_xe (succ e))  (get_xe e)])
+
+(test-equal (term (get_xe 0)) (term []))
+(test-equal (term (get_xe x)) (term []))
+(test-equal (term (get_xe (λ (x) 0))) (term [x]))
+(test-equal (term (get_xe (λ (x) (λ (y) y)))) (term [x y]))
+(test-equal (term (get_xe ((λ (x) x) 0))) (term [x]))
+(test-equal (term (get_xe (succ x))) (term []))
+
+(define-metafunction L
+  ;returns a set of all expressions e 
+  get_ye : e -> any
+  [(get_ye 0) [0]]
+  [(get_ye x) [x]]
+  [(get_ye (λ (x) e)) ,(append (term [(λ (x) e)])
+                               (term (get_ye e)))]
+  [(get_ye (e_1 e_2)) ,(append (term [(e_1 e_2)])
+                               (term (get_ye e_1))
+                               (term (get_ye e_2)))]
+  [(get_ye (succ e))  ,(append (term [(succ e)])
+                               (term (get_ye e)))])
+
+
+(test-equal (term (get_ye 0)) (term [0]))
+(test-equal (term (get_ye x)) (term [x]))
+(test-equal (term (get_ye (λ (x) 0))) (term [(λ (x) 0) 0]))
+(test-equal (term (get_ye (λ (x) (λ (y) y)))) (term [(λ (x) (λ (y) y)) (λ (y) y) y]))
+(test-equal (term (get_xe ((λ (x) x) 0))) (term [x]))
+(test-equal (term (get_xe (succ x))) (term []))
+
+
+  
+  
+
+
+(define e? (redex-match? L e))
 (define q? (redex-match? L q))
 
 (define-metafunction L
@@ -69,31 +237,27 @@
   #:mode (types I I)
   #:contract (types Γ q)
 
-  [(side-condition ,(printf "1\n"))
+  [;(side-condition ,(printf "1\n"))
    ----------------  Rule1
    (types Γ (0 : int))]
 
  
-  [(side-condition ,(printf "2\n"))
-   (where (_ : t_body) q)
+  [(where (_ : t_body) q)
    (where int t_body)
    (types Γ q)
    ------------------------ Rule2
    (types Γ ((succ q) : int))]
 
-   [(side-condition ,(printf "3\n"))
-    (where t (lookup Γ x))
+   [(where t (lookup Γ x))
     ----------------------- Rule3
    (types Γ (x : t))]
 
-  [(side-condition ,(printf "4\n"))
-   (where (_ : t_2) q)
+  [(where (_ : t_2) q)
    (types (extend x t_1 Γ) q)
    ------------------------------------ Rule4
    (types Γ ((λ (x) q) : (→ t_1 t_2)))]
 
-  [(side-condition ,(printf "5\n"))
-   (where (_ : t_1) q_2)
+  [(where (_ : t_1) q_2)
    (where (_ : (→ t_1 t_2)) q_1)
    (types Γ q_2)
    (types Γ q_1)   
@@ -103,7 +267,6 @@
     
  #;[(subtype t_1 t_2)
    (types Γ (q_1 : t_1))
-   ;(where x_new ,(gensym 'x))
    ------------------------------------- Rule6
    (types Γ (q_1 : t_2))] 
   )
@@ -125,7 +288,10 @@
 (test-judgment-holds (types () ((((λ (x) (x : int)) : (→ int int)) (0 : int)) : int)))
 (test-judgment-holds (types () ((λ (x) (((x : (→ int int)) (0 : int)) : int)) : (→ (→ int int) int))))
 
-;xe and ye (judgment)
+
+;xe and ye
+;(where x_new ,(gensym 'x))
+;(side-condition ,(printf "3\n"))
 
 (test-results)
 
