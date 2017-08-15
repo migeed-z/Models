@@ -43,25 +43,69 @@
   (Const ::= (W ≤ W+)
              (Const ...))
 
-
+  (P-or-F ::= ((W ≤ W+)(W ≤ W+))
+               #f)
+  
   (x ::= variable-not-otherwise-mentioned)
   (Γ ::= ((x t) ...)))
 
 
 
+
+(define-metafunction L
+  ;returns the first occurrence of transitive pair
+  trans-aux : (Const ...) (W ≤ W+) -> P-or-F
+  [(trans-aux () (W ≤ W+)) #f]
+  [(trans-aux ((W* ≤ W+) (W_c ≤ W+_d) ...) (W ≤ W*)) ((W ≤ W*) (W* ≤ W+))]
+  [(trans-aux ((W ≤ W*) (W_c ≤ W+_d) ...) (W* ≤ W+)) ((W ≤ W*)  (W* ≤ W+))]
+  [(trans-aux ((W ≤ W+) (W_c ≤ W+_d) ...) (W_other ≤ W+_other)) (trans-aux  ((W_c ≤ W+_d) ...)
+                                                                         (W_other ≤ W+_other))]
+  )
+
+
+
+(define-metafunction L
+  ;scans all const. for a transitive pair
+  get-trans : (Const ...) -> P-or-F
+  [(get-trans ()) #f]
+  
+  [(get-trans  ((W_1 ≤ W+_1) (W_3 ≤ W+_3) ...))
+   ,(if (term P-or-F)
+        (term P-or-F)
+        (term (get-trans ((W_3 ≤ W+_3) ...))))
+
+   (where P-or-F (trans-aux ((W_3 ≤ W+_3) ...) (W_1 ≤ W+_1)))])
+
+
+(test-equal (term (get-trans(((succ x) ≤ x)
+                      ((x -> x (λ (x) x)) ≤ ((λ (x) x)  -> 0 ((λ (x) x) 0))))))
+            (term #f))
+
+(test-equal (term (get-trans (((succ x) ≤ x)
+                             (x ≤ 0))))
+            (term  (((succ x) ≤ x)
+                             (x ≤ 0))))
+
+
+(test-equal (term (get-trans (((succ x) ≤ x)
+                             (x ≤ 0)
+                             (0 ≤ x))))
+            (term  (((succ x) ≤ x)
+                             (x ≤ 0))))
+
+(test-equal (term (get-trans (((succ x) ≤ x)
+                             (x ≤ 0)
+                             ((succ x) ≤ 0)
+                             (0 ≤ x))))
+            (term  (((succ x) ≤ x)
+                             (x ≤ 0))))
+
 (define-metafunction L
   ;given T(e) returns T'(e)
   T- : Const -> Const
-
-  [(T-((W ≤ W+)... (W_1 ≤ W*_2) (W_3 ≤ W+_4) ... (W*_2 ≤ W+_3)))
-    (T- ((W ≤ W+)... (W_1 ≤ W*_2) (W_3 ≤ W+_4) ... (W*_2 ≤ W+_3) (W_1 ≤ W+_3)))
-    (side-condition (not (member
-                          (term (W_1 ≤ W+_3))
-                          (term ((W ≤ W+)... (W_1 ≤ W*_2) (W_3 ≤ W+_4) ... (W*_2 ≤ W+_3))))))]
-                 
           
-  [(T- (((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h))) (W ≤ W+) ...) )  
-     (T- (((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h)))
+  [(T- ((W_1 ≤ W_2+)... ((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h))) (W ≤ W+) ...))  
+     (T- ((W_1 ≤ W_2+)... ((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h)))
           (W ≤ W+) ...
           (v_s2 ≤ v_s1)
           (v_t1 ≤ v_t2)))
@@ -72,13 +116,24 @@
                           (not (member (term (v_t1 ≤ v_t2))
                                   (term (((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h)))
                                          (W ≤ W+) ...))))))]
+
+ [(T- (Const ...))
+  (T- ((W ≤ W+) Const ...))
+  (where ((W ≤ W*)(W* ≤ W+)) (get-trans (Const ...)))
+  (side-condition (not (member (term (W ≤ W+)) (term (Const ...)))))]
+  
+
+  
   [(T- Const) Const])
 
 
-(test-equal (term  (T- (((x -> 0 (λ (x) 0)) ≤ (x -> 0 ((λ (x) 0) 0)))) ))
-            (term  (((x -> 0 (λ (x) 0)) ≤ (x -> 0 ((λ (x) 0) 0)))
-                    (x ≤ x)
-                    (0 ≤ 0))))
+(check-true (redex-match? L ((W_1 ≤ W_2+)...
+                             ((v_s1 -> v_t1 (λ (x) YE)) ≤ (v_s2 -> v_t2 (YE_g YE_h)))
+                              (W ≤ W+) ...)
+                          (term (((succ x) ≤ x)
+                                 ((x -> x (λ (x) x)) ≤ ((λ (x) x)  -> 0 ((λ (x) x) 0)))))))
+
+(check-true (redex-match? L Const (term ((x -> x (λ (x) x)) ≤ ((λ (x) x) -> 0 ((λ (x) x) 0))))))
 
 (check-true (redex-match? L Const (term (((0 ≤ Int) (Int ≤ 0))))))
 (check-true (redex-match? L (W ≤ W+) (term (Int ≤ Int))))
@@ -88,14 +143,26 @@
           (term              (((x -> 0 (λ (x) 0)) ≤ (x -> 0 ((λ (x) 0) 0))) ))))
 
 
+(define-syntax-rule (test-set= t0  t1)
+  (test-equal t0 t1 #:equiv set=?))
 
-(test-equal (term (T-((0 ≤ Int) (Int ≤ 0)))) (term((0 ≤ Int) (Int ≤ 0) (0 ≤ 0))))
+(test-set= (term  (T- (((x -> 0 (λ (x) 0)) ≤ (x -> 0 ((λ (x) 0) 0)))) ))
+            (term  (((x -> 0 (λ (x) 0)) ≤ (x -> 0 ((λ (x) 0) 0)))
+                    (x ≤ x)
+                    (0 ≤ 0))))
+(test-set= (term (T-((0 ≤ Int) (Int ≤ 0)))) (term((0 ≤ Int) (Int ≤ 0) (0 ≤ 0))))
 (test-equal (term (T-((x ≤ (succ x)) ((succ x) ≤ Int))))
-            (term ((x ≤ (succ x)) ((succ x) ≤ Int) (x ≤ Int))))
+            (term ((x ≤ (succ x)) ((succ x) ≤ Int) (x ≤ Int))) #:equiv set=?)
 
-
-
-
+(test-set= 
+            (term (T-(((succ x) ≤ x)
+                      ((x -> x (λ (x) x)) ≤ ((λ (x) x)  -> 0 ((λ (x) x) 0))))))
+            (term (((succ x) ≤ x)
+                    ((x -> x (λ (x) x)) ≤ ((λ (x) x)  -> 0 ((λ (x) x) 0)))
+                   ((λ (x) x) ≤ x)
+                   ((succ x) ≤ 0)
+                   (x ≤ 0))))
+                  
 (define-metafunction L
   ;generate a system of constraints for e
   T : e -> Const
