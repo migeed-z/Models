@@ -45,6 +45,8 @@
 
   (P-or-F ::= ((W ≤ W+)(W ≤ W+))
                #f)
+  (Bool ::= #t
+            #f)
   
   (x ::= variable-not-otherwise-mentioned)
   (Γ ::= ((x t) ...)))
@@ -61,16 +63,15 @@
   [(trans-aux ((W ≤ W+) (W_c ≤ W+_d) ...) (W_other ≤ W+_other)) (trans-aux  ((W_c ≤ W+_d) ...)
                                                                          (W_other ≤ W+_other))]
   )
-
-
-
+        
+       
 (define-metafunction L
   ;scans all const. for a transitive pair
   get-trans : (Const ...) -> P-or-F
   [(get-trans ()) #f]
   
   [(get-trans  ((W_1 ≤ W+_1) (W_3 ≤ W+_3) ...))
-   ,(if (term P-or-F)
+   ,(or 
         (term P-or-F)
         (term (get-trans ((W_3 ≤ W+_3) ...))))
 
@@ -205,15 +206,33 @@
   (x ≤ x))))
 
 
+(define-metafunction L
+  ;Is this set of constraints typable?
+  typable? : (Const ...) -> any
+  [(typable? ()) #t]
+  [(typable? ((W ≤ W+) (W_1 ≤ W+_1) ...))
+   ,(and (and
+        (not (redex-match? L ((v_1 -> v_2 (λ (x) YE)) ≤ Int) (term (W ≤ W+))))
+        (not (redex-match? L (Int ≤ (v_1 -> v_2 (YE_1 YE_2))) (term (W ≤ W+)))))
+        (term (typable? ((W_1 ≤ W+_1) ...))))])
 
-#|(define-relation L
-  ≤ ⊆ W × W+
-  [(≤ Int {0})]
-  [(≤ Int {succ YE})]
-  [(≤ YE Int)]
-  [(≤ (x -> YE {λ (x) YE}) {(λ (x) YE)})]
-  [(≤ YE_G (YE_H -> YE_GH {YE_G YE_H}))]
-  [(≤ x {x})])|#
+
+(test-equal (term (typable? ())) #t)
+(test-equal (term (typable?
+                   (((λ (x) x) ≤ (0 -> ((λ (x) x) 0) ((λ (x) x) 0)))
+                    ((x -> x (λ (x) x)) ≤ (λ (x) x))
+                    (x ≤ x)
+                    (Int ≤ 0)))) #t)
+
+(test-equal (term (typable? ((Int ≤ 0)
+                             (x ≤ x)
+                             (Int ≤ (0 -> ((λ (x) x) 0) ((λ (x) x) 0))) ))) #f)
+                             
+(test-equal (term (typable?
+                   ((Int ≤ (0 -> ((λ (x) x) 0) ((λ (x) x) 0)))
+                    ((x -> x (λ (x) x)) ≤ (λ (x) x))
+                    (x ≤ x)
+                    (Int ≤ 0)))) #f)
 
 
 (define-metafunction L
@@ -253,11 +272,6 @@
 (test-equal (term (get_ye (λ (x) (λ (y) y)))) (term [(λ (x) (λ (y) y)) (λ (y) y) y]))
 (test-equal (term (get_xe ((λ (x) x) 0))) (term [x]))
 (test-equal (term (get_xe (succ x))) (term []))
-
-
-  
-  
-
 
 (define e? (redex-match? L e))
 (define q? (redex-match? L q))
