@@ -45,6 +45,10 @@
 
   (P-or-F ::= ((W ≤ W+)(W ≤ W+))
                #f)
+
+  (k-or-f ::= W
+              #f)
+  
   (Bool ::= #t
             #f)
   
@@ -52,6 +56,16 @@
   (Γ ::= ((x t) ...)))
 
 
+
+(define-metafunction L
+  ;Given a v and k ≤ v, return k
+  phi : v Const -> k-or-f
+  [(phi v (W ≤ v)) W]
+  [(phi v Const) #f]
+  )
+
+(test-equal (term (phi x (Int ≤ x))) (term Int))
+(test-equal (term (phi x (Int ≤ Int))) (term #f))
 
 
 (define-metafunction L
